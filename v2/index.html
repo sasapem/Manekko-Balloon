@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>まねっこバルーン v2（精度版）</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none;}
+  html,body{width:100%;height:100%;overflow:hidden;font-family:"Hiragino Maru Gothic ProN","Hiragino Sans",sans-serif;background:#000;color:#fff;}
+  #app{width:100vw;height:100vh;position:relative;overflow:hidden;}
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4vw;}
+  #title-screen{background:linear-gradient(160deg,#a1c4fd,#c2e9fb,#fbc2eb);color:#222;overflow-y:auto;}
+  .title{font-size:10vw;color:#1565c0;text-shadow:2px 2px 0 #fff;margin:2vh 0 1vh;font-weight:bold;text-align:center;}
+  .subtitle{font-size:4vw;color:#333;margin-bottom:2vh;text-align:center;line-height:1.6;}
+  .badge-acc{font-size:3.4vw;background:#1565c0;color:#fff;padding:.6vh 3vw;border-radius:100px;margin-bottom:2vh;}
+  .legend{width:90vw;max-width:500px;background:#fff;border-radius:4vw;padding:3vw;box-shadow:0 4px 12px rgba(0,0,0,.15);margin-bottom:3vh;color:#333;font-size:3.6vw;line-height:1.8;text-align:center;}
+  .start-btn{padding:2.5vh 12vw;font-size:6vw;background:#1565c0;color:#fff;border:none;border-radius:100px;font-family:inherit;box-shadow:0 6px 0 #0d47a1;font-weight:bold;}
+  .start-btn:active{transform:translateY(3px);box-shadow:0 3px 0 #0d47a1;}
+  .note{margin-top:2vh;font-size:3.2vw;color:#555;text-align:center;}
+
+  #game-screen{background:#000;padding:0;display:block;}
+  .pane{position:absolute;left:0;right:0;overflow:hidden;background:#000;}
+  .pane-top{top:0;height:42vh;border-bottom:4px solid #ffeb3b;}
+  .pane-bottom{top:42vh;height:42vh;border-bottom:4px solid #1565c0;}
+  .pane video,.pane img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .pane-bottom video{transform:scaleX(-1);}
+  .pane-label{position:absolute;top:1vh;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.78);padding:.7vh 3vw;border-radius:100px;font-size:3.6vw;border:1px solid rgba(255,255,255,.3);z-index:4;}
+  .scan-reticle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:32vh;max-width:66vw;height:32vh;max-height:66vw;border:3px dashed rgba(255,235,59,.85);border-radius:50%;pointer-events:none;z-index:3;}
+  .scan-reticle.active{border-color:#4caf50;border-style:solid;box-shadow:0 0 20px rgba(76,175,80,.6);}
+  .hud-top{position:absolute;top:1vh;left:2vw;right:2vw;display:flex;justify-content:space-between;pointer-events:none;z-index:5;}
+  .hud-item{background:rgba(0,0,0,.7);padding:.7vh 3vw;border-radius:100px;font-size:3.6vw;font-weight:bold;border:1px solid rgba(255,255,255,.3);}
+
+  .info-strip{position:absolute;top:84vh;left:0;right:0;height:16vh;background:linear-gradient(180deg,#f0f7ff,#d6e9ff);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6vh;z-index:6;color:#222;padding:1vw 2vw;}
+  .target-line{font-size:4.4vw;font-weight:bold;display:flex;align-items:center;gap:2vw;}
+  .target-emoji{font-size:6vw;}
+  .meter-wrap{width:80vw;max-width:480px;height:3vh;background:rgba(0,0,0,.12);border-radius:100px;overflow:hidden;}
+  .meter-bar{height:100%;width:0%;background:linear-gradient(90deg,#ffeb3b,#ff9800,#4caf50);transition:width .08s linear;}
+  .strip-row{display:flex;gap:2vw;align-items:center;}
+  .hint{font-size:3.2vw;color:#555;}
+  .rescan-btn,.finish-btn{padding:.8vh 4vw;font-size:3.4vw;color:#fff;border:none;border-radius:100px;font-family:inherit;font-weight:bold;}
+  .rescan-btn{background:#1976d2;} .finish-btn{background:#555;}
+
+  .grid{position:absolute;bottom:0;left:0;right:0;display:grid;grid-template-columns:repeat(8,1fr);gap:1vw;padding:1vw 2vw;background:#111;z-index:7;}
+  .balloon-cell{aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid rgba(255,255,255,.4);transition:all .3s;font-size:3.4vw;font-weight:bold;color:#111;}
+  .balloon-cell.claimed{opacity:.85;}
+  .balloon-cell.active{box-shadow:0 0 10px #ffeb3b;border-color:#ffeb3b;transform:scale(1.12);}
+
+  #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.95);z-index:100;color:#222;font-size:5vw;flex-direction:column;text-align:center;padding:4vw;}
+  .spinner{width:15vw;height:15vw;border:4px solid #eee;border-top-color:#1565c0;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:3vh;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #result-screen{background:linear-gradient(180deg,#f0f7ff,#d6e9ff);color:#333;justify-content:flex-start;overflow-y:auto;padding:4vh 4vw;}
+  .result-title{font-size:9vw;margin:2vh 0;font-weight:bold;}
+  .result-score{font-size:16vw;font-weight:bold;color:#1565c0;line-height:1;}
+  .retry-btn{margin-top:3vh;padding:2vh 8vw;font-size:5vw;background:#1565c0;color:#fff;border:none;border-radius:100px;font-family:inherit;font-weight:bold;}
+  .flycount{position:absolute;left:50%;top:30%;font-size:25vw;pointer-events:none;z-index:60;animation:balloonFly 1.5s ease-out forwards;}
+  @keyframes balloonFly{0%{transform:translate(-50%,0) scale(.4);opacity:1;}100%{transform:translate(-50%,-80vh) scale(1.5);opacity:0;}}
+  .toast{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:80;pointer-events:none;text-align:center;}
+  .hidden{display:none!important;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="title-screen" class="screen">
+    <div class="title">まねっこ<br>バルーン</div>
+    <div class="badge-acc">⚙️ 精度版（顔の形をちゃんと見ます）</div>
+    <div class="subtitle">風船をスキャン → 同じ顔をつくろう</div>
+    <div class="legend">
+      8色の風船にそれぞれ表情がついてるよ。<br>
+      風船を外カメラに映す→内カメラで同じ顔。<br>
+      <b>顔の動きを直接見て判定</b>（同じ顔なら毎回同じ結果）。
+    </div>
+    <button class="start-btn" id="startBtn">スキャン開始</button>
+    <div class="note">📷 カメラと顔認識を使います</div>
+  </div>
+
+  <div id="game-screen" class="screen hidden">
+    <div class="pane pane-top">
+      <video id="videoTop" autoplay muted playsinline></video>
+      <img id="balloonSnap" style="display:none;z-index:2;">
+      <div class="scan-reticle" id="scanReticle"></div>
+      <div class="pane-label" id="topLabel">🎈 風船を映す</div>
+      <div class="hud-top">
+        <div class="hud-item">⏱ <span id="timerHud">40</span>s</div>
+        <div class="hud-item">🎈 <span id="clearedHud">0</span>/8</div>
+      </div>
+    </div>
+
+    <div class="info-strip">
+      <div class="target-line" id="targetLine"><span class="hint">風船を外カメラに映してね</span></div>
+      <div class="meter-wrap"><div class="meter-bar" id="meterBar"></div></div>
+      <div class="strip-row">
+        <span class="hint" id="hintText">—</span>
+        <button class="rescan-btn" id="rescanBtn">別の風船</button>
+        <button class="finish-btn" id="finishBtn">終わる</button>
+      </div>
+    </div>
+
+    <div class="pane pane-bottom">
+      <video id="videoBottom" autoplay muted playsinline></video>
+      <div id="faceWait" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#111;color:#aaa;font-size:5vw;z-index:2;">風船スキャン後に顔判定</div>
+      <div class="pane-label">😀 あなたの顔</div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div id="result-screen" class="screen hidden">
+    <div class="result-title">結果</div>
+    <div class="result-score" id="resultScore">0/8</div>
+    <div style="font-size:4.5vw;margin-top:2vh;color:#555;" id="resultMsg"></div>
+    <button class="retry-btn" onclick="location.reload()">もう一度</button>
+  </div>
+
+  <div id="loading" class="hidden">
+    <div class="spinner"></div>
+    <div id="loadingText">カメラと顔認識を起動中…</div>
+  </div>
+</div>
+
+<script type="module">
+import { FaceLandmarker, FilesetResolver }
+  from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12";
+import { exprScores, EXPR_THRESHOLD, NEEDS_VLM } from "./expr.js";
+
+/* 色 → 表情(v1と同じ8種) */
+const BALLOONS = [
+  {color:'red',    css:'#e53935', expr:'angry',     emoji:'😡', label:'おこる',         jp:'赤'},
+  {color:'cyan',   css:'#4dd0e1', expr:'sad',       emoji:'😭', label:'かなしい',       jp:'水色'},
+  {color:'purple', css:'#8e24aa', expr:'tongue',    emoji:'😛', label:'ベロ出し',       jp:'紫'},
+  {color:'yellow', css:'#fdd835', expr:'surprised', emoji:'😯', label:'びっくり',       jp:'黄色'},
+  {color:'orange', css:'#fb8c00', expr:'happy',     emoji:'😀', label:'わらう',         jp:'オレンジ'},
+  {color:'green',  css:'#43a047', expr:'puff',      emoji:'🤩', label:'ほっぺ膨らまし', jp:'緑'},
+  {color:'white',  css:'#f5f5f5', expr:'neutral',   emoji:'😐', label:'真顔',           jp:'白'},
+  {color:'pink',   css:'#ec87a8', expr:'wink',      emoji:'😉', label:'ウィンク',       jp:'ピンク'},
+];
+
+const GAME_TIME_S = 40;
+const HOLD_MS = 600;        // この時間しきい値以上をキープで成立(公平で安定)
+const EMA = 0.4;            // 平滑化(0=即時, 1=動かない)
+const COLOR_STABLE_MS = 200;
+const VLM_INTERVAL_MS = 900; // ベロ出しは0.9秒ごとに問い合わせ
+
+let videoBalloon, videoFace, sampleCanvas, sctx, capCanvas, cctx;
+let faceLandmarker;
+let running=false, cleared=0;
+let claimed = new Array(BALLOONS.length).fill(false);
+let gameMode='scan', activeIdx=-1, switching=false, currentStream=null;
+let lastColor=null, colorSince=0;
+let smoothScore=0, holdMs=0, lastT=0;
+let vlmBusy=false, lastVlm=0;
+
+function $(id){return document.getElementById(id);}
+
+async function loadModel(){
+  const fs = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm");
+  faceLandmarker = await FaceLandmarker.createFromOptions(fs, {
+    baseOptions:{ modelAssetPath:
+      "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+      delegate:"GPU" },
+    outputFaceBlendshapes:true, runningMode:"VIDEO", numFaces:1
+  });
+}
+async function useCamera(facing){
+  switching=true;
+  if(currentStream){currentStream.getTracks().forEach(t=>t.stop());}
+  let stream;
+  try{ stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing},width:640,height:480}}); }
+  catch(e){ stream=await navigator.mediaDevices.getUserMedia({video:true}); }
+  currentStream=stream;
+  const target=(facing==='environment')?videoBalloon:videoFace;
+  const other=(facing==='environment')?videoFace:videoBalloon;
+  if(other)other.srcObject=null;
+  target.srcObject=stream;
+  await new Promise(r=>target.onloadedmetadata=r);
+  await target.play();
+  switching=false;
+  return target;
+}
+async function startCamera(){
+  videoBalloon=$('videoTop'); videoFace=$('videoBottom');
+  await useCamera('environment');
+  sampleCanvas=document.createElement('canvas');
+  sampleCanvas.width=640; sampleCanvas.height=480;
+  sctx=sampleCanvas.getContext('2d',{willReadFrequently:true});
+  capCanvas=document.createElement('canvas'); capCanvas.width=480; capCanvas.height=360;
+  cctx=capCanvas.getContext('2d');
+}
+
+/* ===== 色スキャン(v1流用) ===== */
+function sampleCenterColor(){
+  if(!videoBalloon||!videoBalloon.videoWidth)return null;
+  const w=videoBalloon.videoWidth,h=videoBalloon.videoHeight;
+  sctx.drawImage(videoBalloon,0,0,w,h);
+  const r=Math.min(w,h)*.22, x0=Math.round(w/2-r), y0=Math.round(h/2-r);
+  const img=sctx.getImageData(Math.max(0,x0),Math.max(0,y0),Math.round(r*2),Math.round(r*2)).data;
+  let rs=0,gs=0,bs=0,n=0;
+  for(let i=0;i<img.length;i+=16){rs+=img[i];gs+=img[i+1];bs+=img[i+2];n++;}
+  return n?[rs/n,gs/n,bs/n]:null;
+}
+function rgb2hsv(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;
+  if(d){if(mx===r)h=((g-b)/d)%6;else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;h*=60;if(h<0)h+=360;}
+  return [h,mx===0?0:d/mx*100,mx*100];}
+function classifyColor(rgb){const[h,s,v]=rgb2hsv(...rgb);
+  if(v<22)return'black'; if(s<12&&v>70)return'white'; if(s<18)return null;
+  if(h<15||h>=345)return'red'; if(h<38)return'orange'; if(h<65)return'yellow';
+  if(h<165)return'green'; if(h<200)return'cyan'; if(h<260)return'blue';
+  if(h<310)return'purple'; return'pink';}
+function findByColor(cn){return BALLOONS.findIndex(b=>b.color===cn);}
+
+/* ===== 表情判定(ブレンドシェイプ) ===== */
+function readBlendshapes(){
+  if(!videoFace||!videoFace.videoWidth)return null;
+  const res=faceLandmarker.detectForVideo(videoFace, performance.now());
+  if(!res.faceBlendshapes||!res.faceBlendshapes.length)return null;
+  const map={};
+  for(const c of res.faceBlendshapes[0].categories) map[c.categoryName]=c.score;
+  return map;
+}
+
+function enterIdentify(idx){
+  if(gameMode!=='scan'||switching)return;
+  gameMode='identify'; activeIdx=idx; smoothScore=0; holdMs=0;
+  const b=BALLOONS[idx];
+  const snap=document.createElement('canvas');
+  snap.width=videoBalloon.videoWidth; snap.height=videoBalloon.videoHeight;
+  snap.getContext('2d').drawImage(videoBalloon,0,0);
+  const img=$('balloonSnap'); img.src=snap.toDataURL('image/jpeg',0.9);
+  img.style.display='block'; videoBalloon.style.display='none';
+  $('topLabel').textContent='✓ '+b.jp+' をスキャン';
+  $('scanReticle').classList.add('active');
+  $('targetLine').innerHTML=`<span class="target-emoji">${b.emoji}</span>「${b.label}」をマネ！`;
+  $('hintText').textContent = NEEDS_VLM.has(b.expr) ? 'AIが判定（紫はベロ出し）' : '顔をしっかり作ってキープ';
+  $('faceWait').textContent='📷 内カメラ起動中…';
+  useCamera('user').then(()=>{ $('faceWait').style.display='none'; });
+}
+function enterScan(){
+  if(gameMode==='scan'||switching)return;
+  gameMode='scan'; activeIdx=-1; holdMs=0; smoothScore=0; lastColor=null;
+  $('balloonSnap').style.display='none'; videoBalloon.style.display='block';
+  $('faceWait').style.display='flex'; $('faceWait').textContent='📷 外カメラ起動中…';
+  $('scanReticle').classList.remove('active');
+  $('targetLine').innerHTML='<span class="hint">風船を外カメラに映してね</span>';
+  $('meterBar').style.width='0%'; $('hintText').textContent='—';
+  useCamera('environment').then(()=>{ $('faceWait').textContent='風船スキャン後に顔判定'; });
+}
+
+function renderGrid(active=-1){
+  const g=$('grid'); g.innerHTML='';
+  BALLOONS.forEach((b,i)=>{
+    const c=document.createElement('div');
+    c.className='balloon-cell'+(claimed[i]?' claimed':'')+(i===active?' active':'');
+    c.style.background=b.css;
+    c.textContent=claimed[i]?'✓':'';
+    g.appendChild(c);
+  });
+}
+function fly(emoji){const e=document.createElement('div');e.className='flycount';e.textContent=emoji;
+  $('game-screen').appendChild(e);setTimeout(()=>e.remove(),1500);}
+function toast(html,ms){const e=document.createElement('div');e.className='toast';e.innerHTML=html;
+  $('game-screen').appendChild(e);setTimeout(()=>e.remove(),ms||1200);}
+
+function succeed(idx){
+  const b=BALLOONS[idx];
+  claimed[idx]=true; cleared++; $('clearedHud').textContent=cleared;
+  fly(b.emoji);
+  toast(`<div style="font-size:24vw;">${b.emoji}</div><div style="font-size:9vw;font-weight:bold;color:#fff;text-shadow:0 2px 12px #000;">せいかい！</div>`,1100);
+  // 写真を共有保存
+  cctx.save();cctx.scale(-1,1);cctx.drawImage(videoFace,-480,0,480,360);cctx.restore();
+  const b64=capCanvas.toDataURL('image/jpeg',0.85).split(',')[1];
+  fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({color:b.color,expr:b.expr,image:b64})}).catch(()=>{});
+  renderGrid(-1);
+  setTimeout(()=>{ if(running) enterScan(); },1100);
+}
+
+async function vlmJudge(b){
+  cctx.save();cctx.scale(-1,1);cctx.drawImage(videoFace,-480,0,480,360);cctx.restore();
+  const b64=capCanvas.toDataURL('image/jpeg',0.85).split(',')[1];
+  try{
+    const r=await fetch('/api/classify',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({expr:b.expr,image:b64})});
+    return (await r.json()).match;
+  }catch(e){ return true; } // 失敗時は通す
+}
+
+async function loop(){
+  lastT=performance.now();
+  while(running){
+    const now=performance.now(); const dt=Math.min(100,now-lastT); lastT=now;
+    if(switching){ await raf(); continue; }
+    try{
+      if(gameMode==='scan'){
+        const rgb=sampleCenterColor(); const cn=rgb?classifyColor(rgb):null;
+        if(cn!==lastColor){lastColor=cn;colorSince=now;}
+        const stable=cn&&(now-colorSince>=COLOR_STABLE_MS);
+        const idx=stable?findByColor(cn):-1;
+        if(idx<0){ renderGrid(-1); }
+        else if(claimed[idx]){
+          $('targetLine').innerHTML=`<span class="hint">${BALLOONS[idx].jp} は取得済み</span>`;
+          renderGrid(idx);
+        }else{ renderGrid(idx); enterIdentify(idx); }
+      }else{ // identify
+        const b=BALLOONS[activeIdx];
+        if(NEEDS_VLM.has(b.expr)){
+          $('meterBar').style.width = vlmBusy?'100%':'30%';
+          if(!vlmBusy && now-lastVlm>=VLM_INTERVAL_MS){
+            vlmBusy=true; lastVlm=now;
+            const ok=await vlmJudge(b); vlmBusy=false;
+            if(ok && running && gameMode==='identify') succeed(activeIdx);
+          }
+        }else{
+          const bs=readBlendshapes();
+          const raw = bs ? (exprScores(bs)[b.expr]||0) : 0;
+          smoothScore = EMA*smoothScore + (1-EMA)*raw;
+          const thr = EXPR_THRESHOLD[b.expr];
+          if(smoothScore>=thr) holdMs+=dt; else holdMs=Math.max(0,holdMs-dt*1.5);
+          $('meterBar').style.width=Math.min(100,holdMs/HOLD_MS*100)+'%';
+          if(holdMs>=HOLD_MS) succeed(activeIdx);
+        }
+      }
+    }catch(e){ console.log(e); }
+    await raf();
+  }
+}
+function raf(){return new Promise(r=>requestAnimationFrame(r));}
+
+async function run(){
+  $('title-screen').classList.add('hidden');
+  $('loading').classList.remove('hidden');
+  try{ await Promise.all([loadModel(), startCamera()]); }
+  catch(e){ $('loadingText').textContent='起動失敗: '+(e.message||e); console.error(e); return; }
+  $('loading').classList.add('hidden');
+  $('game-screen').classList.remove('hidden');
+  renderGrid();
+  running=true; loop();
+  const t0=Date.now();
+  while(running){
+    const remain=Math.max(0,GAME_TIME_S*1000-(Date.now()-t0));
+    $('timerHud').textContent=Math.ceil(remain/1000);
+    if(remain<=0||cleared>=BALLOONS.length){running=false;break;}
+    await new Promise(r=>setTimeout(r,200));
+  }
+  showResult();
+}
+function showResult(){
+  $('game-screen').classList.add('hidden');
+  $('result-screen').classList.remove('hidden');
+  $('resultScore').textContent=cleared+'/8';
+  $('resultMsg').textContent = cleared>=8?'全部そろった！すごい！'
+    : cleared>=5?'いい調子！' : 'もう一度チャレンジ！';
+}
+$('startBtn').addEventListener('click',run);
+$('finishBtn').addEventListener('click',()=>{running=false;});
+$('rescanBtn').addEventListener('click',()=>{ if(gameMode==='identify') enterScan(); });
+</script>
+</body>
+</html>
